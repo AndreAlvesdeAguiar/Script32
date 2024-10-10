@@ -1,0 +1,15 @@
+# Usar a imagem base do Python
+FROM python:3.10-slim
+
+# Definir o diretório de trabalho
+WORKDIR /usr/src/app
+
+# Copiar o script Python e o arquivo de requisitos para o container
+COPY script.py ./
+COPY requirements.txt ./
+
+# Instalar as dependências
+RUN pip install --no-cache-dir -r requirements.txt
+
+# Comando para rodar o script
+CMD ["python", "./script.py"]
