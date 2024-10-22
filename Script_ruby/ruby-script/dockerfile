@@ -1,0 +1,21 @@
+# Usar a imagem base do Ruby
+FROM ruby:3.1-slim
+
+# Instalar dependências de sistema necessárias
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    libmariadb-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Definir o diretório de trabalho
+WORKDIR /usr/src/app
+
+# Copiar o Gemfile e o Gemfile.lock para o container
+COPY Gemfile ./
+RUN bundle install
+
+# Copiar o script Ruby para o container
+COPY script.rb ./
+
+# Comando para rodar o script
+CMD ["ruby", "./script.rb"]
