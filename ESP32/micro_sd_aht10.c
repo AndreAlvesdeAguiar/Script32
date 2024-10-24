@@ -89,6 +89,6 @@ void loop() {
   // Assegura que os dados são gravados
   dataFile.flush();
 
-  // Intervalo de 10 segundos antes da próxima leitura
-  delay(50000);
+  // Intervalo de 5 segundos antes da próxima leitura
+  delay(5000);
 }
