@@ -2,27 +2,16 @@ require 'net/http'
 require 'json'
 require 'mysql2'
 require 'dotenv/load'
+require 'active_support/all'  # Adicione esta linha para usar ActiveSupport
 
 # URLs das APIs locais dos ESP32
-url_esp1 = URI('http://192.168.15.9/dados')  # ESP32 1
-url_esp2 = URI('http://192.168.15.16/dados')  # ESP32 2
+$url_esp1 = URI('http://192.168.15.9/dados')  # ESP32 1
+$url_esp2 = URI('http://192.168.15.16/dados')  # ESP32 2
 
 # Função para gravar dados no banco de dados
 def save_data
+  client = nil
   begin
-    # Fazendo a requisição para os ESP32
-    http = Net::HTTP.new(url_esp1.host, url_esp1.port)
-    request = Net::HTTP::Get.new(url_esp1)
-    response_esp1 = http.request(request)
-    data_esp1 = JSON.parse(response_esp1.body)
-    puts "Dados recebidos do ESP32 1: #{data_esp1}"  # Verificação
-
-    http = Net::HTTP.new(url_esp2.host, url_esp2.port)
-    request = Net::HTTP::Get.new(url_esp2)
-    response_esp2 = http.request(request)
-    data_esp2 = JSON.parse(response_esp2.body)
-    puts "Dados recebidos do ESP32 2: #{data_esp2}"  # Verificação
-
     # Conectando ao banco de dados MySQL
     client = Mysql2::Client.new(
       host: ENV['MYSQL_HOST'] || 'localhost',
@@ -31,35 +20,62 @@ def save_data
       password: ENV['MYSQL_PASSWORD'] || '1234'
     )
 
-    # Inserindo os dados do ESP32 1
-    query_esp1 = "INSERT INTO sensor_data_esp1 (tempC, humidity, AQI, TVOC, eCO2)
-                  VALUES (?, ?, ?, ?, ?)"
-    values_esp1 = [
-      data_esp1['tempC'], data_esp1['humidity'], 
-      data_esp1['AQI'], data_esp1['TVOC'], data_esp1['eCO2']
-    ]
-    puts "Inserindo no ESP32 1: #{values_esp1}"  # Verificação
-    client.prepare(query_esp1).execute(*values_esp1)
+    # Array para armazenar threads
+    threads = []
 
-    # Inserindo os dados do ESP32 2
-    query_esp2 = "INSERT INTO sensor_data_esp2 (temp_aht10, humidity_aht10, mq135_value)
-                  VALUES (?, ?, ?)"
-    values_esp2 = [
-      data_esp2['temperatura'], data_esp2['umidade'], 
-      data_esp2['CO2']  # Alterando as chaves para refletir o JSON correto
-    ]
-    puts "Inserindo no ESP32 2: #{values_esp2}"  # Verificação
-    client.prepare(query_esp2).execute(*values_esp2)
+    # Thread para ESP32 1
+    threads << Thread.new do
+      begin
+        http = Net::HTTP.new($url_esp1.host, $url_esp1.port)
+        request = Net::HTTP::Get.new($url_esp1)
+        response_esp1 = http.request(request)
+        data_esp1 = JSON.parse(response_esp1.body)
+        puts "Dados recebidos do ESP32 1: #{data_esp1}"  # Verificação
 
-    # Confirmando as transações
-    puts "Dados dos ESP32 inseridos com sucesso"
+        # Obter timestamp atual no fuso horário de São Paulo
+        timestamp = Time.now.in_time_zone("America/Sao_Paulo").strftime("%Y-%m-%d %H:%M:%S")
+
+        # Inserindo os dados do ESP32 1 (temperatura, umidade e timestamp)
+        query_esp1 = "INSERT INTO sensor_data_esp1 (tempC, humidity, timestamp) VALUES (?, ?, ?)"
+        values_esp1 = [data_esp1['temperatura'], data_esp1['umidade'], timestamp]
+        puts "Inserindo no ESP32 1: #{values_esp1}"  # Verificação
+        client.prepare(query_esp1).execute(*values_esp1)
+
+      rescue StandardError => e
+        puts "Erro ao fazer a requisição para o ESP32 1 ou ao processar os dados: #{e.message}"
+      end
+    end
+
+    # Thread para ESP32 2
+    threads << Thread.new do
+      begin
+        http = Net::HTTP.new($url_esp2.host, $url_esp2.port)
+        request = Net::HTTP::Get.new($url_esp2)
+        response_esp2 = http.request(request)
+        data_esp2 = JSON.parse(response_esp2.body)
+        puts "Dados recebidos do ESP32 2: #{data_esp2}"  # Verificação
+
+        # Obter timestamp atual no fuso horário de São Paulo
+        timestamp = Time.now.in_time_zone("America/Sao_Paulo").strftime("%Y-%m-%d %H:%M:%S")
+
+        # Inserindo os dados do ESP32 2 (temperatura, umidade e timestamp)
+        query_esp2 = "INSERT INTO sensor_data_esp2 (tempC, humidity, timestamp) VALUES (?, ?, ?)"
+        values_esp2 = [data_esp2['temperatura'], data_esp2['umidade'], timestamp]
+        puts "Inserindo no ESP32 2: #{values_esp2}"  # Verificação
+        client.prepare(query_esp2).execute(*values_esp2)
+
+      rescue StandardError => e
+        puts "Erro ao fazer a requisição para o ESP32 2 ou ao processar os dados: #{e.message}"
+      end
+    end
+
+    # Aguarda todas as threads terminarem
+    threads.each(&:join)
+
+    puts "Dados dos ESP32 processados com sucesso"
 
   rescue Mysql2::Error => e
     puts "Erro ao conectar ao MySQL: #{e.message}"
-
-  rescue StandardError => e
-    puts "Erro ao fazer a requisição para a API ou ao processar os dados: #{e.message}"
-
   ensure
     # Fechando a conexão se ela foi aberta
     client.close if client
