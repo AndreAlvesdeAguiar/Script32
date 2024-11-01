@@ -62,9 +62,12 @@ func fetchAndSaveData() error {
 	}
 	now = now.In(loc)
 
+	// Subtrai 3 horas do timestamp
+	adjustedTime := now.Add(-3 * time.Hour)
+
 	// Insere os dados no banco de dados
 	log.Println("Inserindo os dados no banco de dados...")
-	_, err = db.Exec("INSERT INTO sensor_data (temperatura, umidade, created_at) VALUES (?, ?, ?)", data.Temperatura, data.Umidade, now.UTC())
+	_, err = db.Exec("INSERT INTO sensor_data (temperatura, umidade, created_at) VALUES (?, ?, ?)", data.Temperatura, data.Umidade, adjustedTime.UTC())
 	if err != nil {
 		log.Println("Erro ao inserir os dados no banco de dados:", err)
 		return err
@@ -74,7 +77,7 @@ func fetchAndSaveData() error {
 	return nil
 }
 
-// Função para iniciar a coleta de dados a cada segundo
+// Função para iniciar a coleta de dados a cada segu''''ndo
 func startDataCollection() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
