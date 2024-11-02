@@ -2,6 +2,8 @@ import requests
 import mysql.connector
 import os
 import time
+from datetime import datetime
+import pytz  # Para trabalhar com fusos horários
 
 # URL da API local do ESP32
 url_esp1 = "http://192.168.15.9/dados"  # ESP32 1
@@ -25,10 +27,14 @@ def save_data():
         if connection:
             cursor = connection.cursor()
 
+            # Obter timestamp atual no fuso horário de São Paulo
+            sao_paulo_tz = pytz.timezone("America/Sao_Paulo")
+            timestamp = datetime.now(sao_paulo_tz).strftime("%Y-%m-%d %H:%M:%S")
+
             # Inserindo os dados do ESP32 1
-            query_esp1 = """INSERT INTO sensor_data_esp1 (temperatura, umidade)
-                            VALUES (%s, %s)"""
-            values_esp1 = (data_esp1.get('temperatura'), data_esp1.get('umidade'))
+            query_esp1 = """INSERT INTO sensor_data_esp1 (temperatura, umidade, timestamp)
+                            VALUES (%s, %s, %s)"""
+            values_esp1 = (data_esp1.get('temperatura'), data_esp1.get('umidade'), timestamp)
 
             print(f"Inserindo no ESP32 1: {values_esp1}")  # Verificação
             cursor.execute(query_esp1, values_esp1)
