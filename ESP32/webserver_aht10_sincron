@@ -1,0 +1,58 @@
+#include <Adafruit_AHTX0.h>
+#include <WiFi.h>
+#include <WebServer.h>
+
+// Instância do sensor AHT
+Adafruit_AHTX0 aht;
+
+// Configurações de rede WiFi
+const char* ssid = "xxx";        // SSID do WiFi
+const char* password = "xxx"; // Senha do WiFi
+
+// Instância do servidor HTTP
+WebServer server(80);
+
+void setup() {
+  Serial.begin(115200);
+  
+  // Inicializando o sensor AHT
+  Serial.println("Inicializando sensor AHT...");
+  if (!aht.begin()) {
+    Serial.println("Falha ao iniciar o sensor AHT. Verifique a conexão.");
+    while (1); // Fique preso aqui se o sensor não for inicializado
+  }
+  Serial.println("Sensor AHT iniciado com sucesso!");
+
+  // Conectar à rede WiFi
+  Serial.print("Conectando-se à rede WiFi...");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nConectado ao WiFi!");
+  Serial.print("IP: ");
+  Serial.println(WiFi.localIP());
+
+  // Configura a rota para retornar os valores do sensor em JSON
+  server.on("/dados", []() {
+    sensors_event_t humidity_event, temp_event;
+    aht.getEvent(&humidity_event, &temp_event);
+
+    // Criar o JSON com os dados do sensor
+    String json = "{";
+    json += "\"temperatura\": " + String(temp_event.temperature) + ",";
+    json += "\"umidade\": " + String(humidity_event.relative_humidity);
+    json += "}";
+
+    // Enviar a resposta em JSON
+    server.send(200, "application/json", json);
+  });
+
+  // Iniciar o servidor
+  server.begin();
+}
+
+void loop() {
+  server.handleClient(); // Necessário para processar as requisições
+}
